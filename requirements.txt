@@ -1,7 +1,11 @@
-# TensorFlow publishes wheels for Python 3.9–3.12 (Linux/macOS/Windows). Use Docker or pyenv if needed.
-tensorflow>=2.15.0,<2.18.0
-streamlit>=1.28.0
+# Core runtime (works on Python 3.14+)
 numpy>=1.24.0
 pandas>=2.0.0
+streamlit>=1.28.0
 pillow>=10.0.0
 matplotlib>=3.7.0
+torch>=2.2.0
+torchvision>=0.17.0
+
+# TensorFlow/Keras when wheels exist for your interpreter (skipped automatically on unsupported versions).
+tensorflow>=2.15.0,<2.18.0; python_version < "3.14"

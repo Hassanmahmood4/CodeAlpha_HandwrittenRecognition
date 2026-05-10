@@ -10,7 +10,7 @@ Enterprise-ready MNIST CNN built with **TensorFlow/Keras**, packaged Streamlit U
 
 ## Local prerequisites
 
-TensorFlow publishes wheels for **Python 3.9–3.12**. Newer interpreters (for example 3.14 preview builds) may lack wheels — use Docker or a 3.12 virtual environment.
+TensorFlow publishes wheels for **Python 3.9–3.13** (markers pin `<3.14` in `requirements.txt`). When TensorFlow cannot import—common on Python **3.14+**—`scripts/train_model.py` automatically retrains the identical architecture class using **PyTorch** and saves `artifacts/mnist_cnn_torch.pt`. The Streamlit app prefers Keras checkpoints when present and transparently falls back to PyTorch.
 
 ### Setup (Python 3.11/3.12 recommended)
 
@@ -21,6 +21,7 @@ source .venv/bin/activate
 pip install --upgrade pip
 pip install -r requirements.txt
 python scripts/train_model.py
+python scripts/smoke_test.py
 streamlit run app.py
 ```
 

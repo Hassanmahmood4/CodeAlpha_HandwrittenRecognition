@@ -9,6 +9,7 @@ venv/
 .DS_Store
 artifacts/
 .keras/
+.mplconfig/
 data/
 logs/
 .torch_data/
