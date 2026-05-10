@@ -1,107 +1,136 @@
 #!/usr/bin/env python3
-"""Streamlit UI for MNIST digit classification with the trained CNN."""
+"""
+Streamlit digit intelligence desk powered by TensorFlow/Keras CNN checkpoints.
+"""
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 import streamlit as st
-import torch
-from PIL import Image
-from torchvision import datasets, transforms
 
-from mnist_model import MnistCNN
+try:
+    import tensorflow as tf  # noqa: F401
+    from tensorflow import keras
+except ImportError as exc:  # pragma: no cover - environment dependent
+    keras = None  # type: ignore
+    TF_IMPORT_ERROR = exc
+else:
+    TF_IMPORT_ERROR = None
 
-ROOT = Path(__file__).resolve().parent
-ARTIFACTS = ROOT / "artifacts"
-TORCH_DATA = ROOT / ".torch_data"
+from src.config import METRICS_PATH, MODEL_PATH
+from src.preprocessing import pil_to_model_tensor
+
+PROJECT_ROOT = Path(__file__).resolve().parent
 
 
-def load_trained_model():
-    path = ARTIFACTS / "mnist_cnn.pt"
-    if not path.is_file():
-        return None, None
-    map_loc = torch.device("cpu")
+def inject_styles() -> None:
+    st.markdown(
+        """
+        <style>
+            .block-container { padding-top: 1.25rem; max-width: 960px; }
+            div[data-testid="stVerticalBlock"] > div { gap: 0.75rem; }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def load_model_safe():  # pragma: no cover - tensorflow runtime specific
+    if keras is None:
+        return None
+    if not MODEL_PATH.is_file():
+        return None
     try:
-        ckpt = torch.load(path, map_location=map_loc, weights_only=False)
-    except TypeError:
-        ckpt = torch.load(path, map_location=map_loc)
-    model = MnistCNN()
-    model.load_state_dict(ckpt["model_state"])
-    model.eval()
-    return model, path
+        return keras.models.load_model(MODEL_PATH)
+    except Exception:
+        return None
 
 
-def preprocess_pil(img: Image.Image) -> torch.Tensor:
-    if img.mode != "L":
-        img = img.convert("L")
-    arr = np.asarray(img, dtype=np.float32)
-    if arr.mean() > 127:
-        arr = 255.0 - arr
-    img = Image.fromarray(arr.astype(np.uint8))
-    tfm = transforms.Compose(
-        [
-            transforms.Resize((28, 28)),
-            transforms.ToTensor(),
-            transforms.Normalize((0.1307,), (0.3081,)),
-        ]
-    )
-    return tfm(img).unsqueeze(0)
+def load_metrics() -> dict | None:
+    if not METRICS_PATH.is_file():
+        return None
+    with open(METRICS_PATH, encoding="utf-8") as fh:
+        return json.load(fh)
 
 
-@st.cache_resource
-def mnist_test_dataset():
-    TORCH_DATA.mkdir(parents=True, exist_ok=True)
-    tfm = transforms.Compose(
-        [
-            transforms.ToTensor(),
-            transforms.Normalize((0.1307,), (0.3081,)),
-        ]
-    )
-    return datasets.MNIST(root=str(TORCH_DATA), train=False, download=True, transform=tfm)
+def main() -> None:
+    st.set_page_config(page_title="Digit Cognition Studio", layout="wide")
+    inject_styles()
 
+    st.title("Handwritten digit cognition studio")
+    st.caption("TensorFlow/Keras CNN • MNIST-trained weights • upload-first UX")
 
-def main():
-    st.set_page_config(page_title="Handwritten digits", layout="centered")
-    st.title("Handwritten digit recognition")
-    st.caption("Upload a digit image (roughly centered) or sample from MNIST test set. Train first: `python train.py`.")
-
-    model, weights_path = load_trained_model()
-    if model is None:
-        st.warning(f"No weights at `{ARTIFACTS / 'mnist_cnn.pt'}`. Run training, then refresh.")
-        st.code("python train.py --epochs 12", language="bash")
+    if TF_IMPORT_ERROR is not None:
+        st.error("TensorFlow could not be imported on this interpreter.")
+        st.code(str(TF_IMPORT_ERROR))
+        st.warning(
+            "TensorFlow currently ships wheels for **Python 3.9–3.12**. "
+            "Use `docker compose up` (recommended) or install via pyenv/conda per README."
+        )
         return
 
-    st.caption(f"Loaded weights: `{weights_path.name}`")
+    model = load_model_safe()
+    metrics = load_metrics()
 
-    mode = st.radio("Input", ("Upload image", "MNIST test sample"), horizontal=True)
-
-    x = None
-    if mode == "Upload image":
-        up = st.file_uploader("Image (PNG/JPEG)", type=["png", "jpg", "jpeg", "webp"])
-        if up is not None:
-            img = Image.open(up)
-            st.image(img, caption="Original", width=200)
-            x = preprocess_pil(img)
-    else:
-        ds = mnist_test_dataset()
-        idx = st.slider("Test image index", 0, len(ds) - 1, 0)
-        tensor, true_label = ds[idx]
-        viz = tensor.squeeze().numpy() * 0.3081 + 0.1307
-        viz = np.clip(viz, 0.0, 1.0)
-        st.image(viz, caption=f"MNIST test #{idx} (label {true_label})", width=160)
-        x = tensor.unsqueeze(0)
-
-    if x is not None and st.button("Classify", type="primary"):
-        with torch.no_grad():
-            logits = model(x)
-            probs = torch.softmax(logits, dim=1).numpy().ravel()
-        pred = int(probs.argmax())
-        st.success(f"Predicted digit: **{pred}**")
-        st.bar_chart(
-            pd.DataFrame({"P(class)": probs.tolist()}, index=[str(i) for i in range(10)])
+    if model is None:
+        st.error("No trained checkpoint detected.")
+        st.code(f"cd {PROJECT_ROOT} && python scripts/train_model.py", language="bash")
+        st.info(
+            "Dockerfile bundles Python 3.12 + TensorFlow so training/inference works without local TF wheels."
         )
+        return
+
+    if metrics:
+        st.sidebar.metric("Hold-out accuracy", f"{metrics['test_accuracy']:.2%}")
+        st.sidebar.metric("Hold-out loss", f"{metrics['test_loss']:.4f}")
+
+    st.sidebar.markdown("---")
+    st.sidebar.markdown(
+        "**Tips**\n"
+        "- Center digits inside the frame.\n"
+        "- High-contrast strokes produce sharper logits.\n"
+        "- Light backgrounds auto-invert toward MNIST polarity."
+    )
+
+    uploaded = st.file_uploader("Upload handwritten digit (PNG/JPEG/WebP)", type=["png", "jpg", "jpeg", "webp"])
+
+    col_preview, col_chart = st.columns((1, 1))
+
+    tensor = None
+    preview_image = None
+
+    if uploaded is not None:
+        from PIL import Image
+
+        image = Image.open(uploaded)
+        preview_image = image
+        tensor = pil_to_model_tensor(image)
+
+    if preview_image is None:
+        col_preview.info("Awaiting upload — preview will render here.")
+    else:
+        col_preview.image(preview_image, caption="Original upload", use_container_width=True)
+
+    infer = st.button("Run CNN inference", type="primary")
+    if infer and tensor is None:
+        st.warning("Upload an image before running inference.")
+    elif infer and tensor is not None:
+        preds = model.predict(tensor, verbose=0)
+        probs = preds[0]
+        digit = int(np.argmax(probs))
+        confidence = float(np.max(probs) * 100.0)
+
+        st.success(f"Predicted digit: **{digit}**")
+        st.metric("Top-class confidence", f"{confidence:.2f}%")
+
+        df_chart = pd.DataFrame({"probability": probs}, index=[str(i) for i in range(10)])
+        col_chart.bar_chart(df_chart)
+
+        with st.expander("Probability table"):
+            st.dataframe(df_chart.style.format("{:.4f}"))
 
 
 if __name__ == "__main__":

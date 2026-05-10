@@ -1,0 +1,1 @@
+"""MNIST CNN inference package."""

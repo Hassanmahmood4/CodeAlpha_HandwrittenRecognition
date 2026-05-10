@@ -1,41 +1,68 @@
 # CodeAlpha — Handwritten Character Recognition
 
-CNN-based handwritten **digit** recognition on MNIST using **PyTorch** (aligned with the internship brief; EMNIST letters can use the same architecture with more output classes).
+Enterprise-ready MNIST CNN built with **TensorFlow/Keras**, packaged Streamlit UX (upload → preview → logits), and Docker automation for environments where TensorFlow wheels are unavailable locally.
 
-## Requirements
+## Architecture
 
-- Python 3.10+ (tested through Python 3.14; installs CPU wheels from PyPI)
+- Convolutional feature extractor + dense classifier with dropout regularization.
+- `Rescaling` layer keeps training/inference normalization identical.
+- Metrics persisted to `artifacts/training_metrics.json`; weights saved as `artifacts/mnist_cnn.keras`.
 
-## Setup
+## Local prerequisites
+
+TensorFlow publishes wheels for **Python 3.9–3.12**. Newer interpreters (for example 3.14 preview builds) may lack wheels — use Docker or a 3.12 virtual environment.
+
+### Setup (Python 3.11/3.12 recommended)
 
 ```bash
-python -m venv .venv
-source .venv/bin/activate   # Windows: .venv\Scripts\activate
+cd CodeAlpha_HandwrittenRecognition
+python3.12 -m venv .venv
+source .venv/bin/activate
+pip install --upgrade pip
 pip install -r requirements.txt
-```
-
-## Train
-
-```bash
-python train.py --epochs 12
-```
-
-Downloads MNIST into `.torch_data/` on first run. Saves `artifacts/mnist_cnn.pt` (state dict) and prints test accuracy.
-
-## Streamlit UI
-
-```bash
+python scripts/train_model.py
 streamlit run app.py
 ```
 
-Upload a digit image (dark strokes on light background work best; the app auto-inverts light-on-dark scans) or classify a MNIST test image by index.
+### Docker (works everywhere Docker runs)
+
+```bash
+cd CodeAlpha_HandwrittenRecognition
+docker build -t codealpha-mnist .
+docker run --rm -p 8501:8501 codealpha-mnist
+```
+
+Visit `http://localhost:8501`. The image trains MNIST during `docker build`, so the first build takes longer.
+
+## Streamlit workflow
+
+1. Upload a digit-centric PNG/JPEG/WebP.
+2. Inspect the preview pane (auto inversion for light backgrounds).
+3. Tap **Run CNN inference** for softmax probabilities + chart/table.
+
+## Modular layout
+
+```
+src/
+  config.py        # constants / artifact paths
+  model.py         # CNN definition
+  preprocessing.py # PIL → tensor utility
+scripts/
+  train_model.py   # CLI trainer
+app.py             # Streamlit entrypoint
+```
 
 ## GitHub
 
-Create a repository named `CodeAlpha_HandwrittenRecognition`, then:
+Publish as `CodeAlpha_HandwrittenRecognition`:
 
 ```bash
 git remote add origin https://github.com/<your-user>/CodeAlpha_HandwrittenRecognition.git
 git branch -M main
 git push -u origin main
 ```
+
+## Operational notes
+
+- For GPU hosts, swap the base image or install `tensorflow` GPU builds per NVIDIA guidance.
+- `.streamlit/config.toml` tweaks palette + typography for hosted demos.

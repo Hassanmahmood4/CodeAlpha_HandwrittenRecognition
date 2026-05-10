@@ -1,0 +1,8 @@
+.venv
+venv
+.git
+__pycache__
+*.pyc
+artifacts/*.keras
+artifacts/*.h5
+.streamlit/secrets.toml
