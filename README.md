@@ -22,6 +22,14 @@ python train.py --epochs 12
 
 Downloads MNIST into `.torch_data/` on first run. Saves `artifacts/mnist_cnn.pt` (state dict) and prints test accuracy.
 
+## Streamlit UI
+
+```bash
+streamlit run app.py
+```
+
+Upload a digit image (dark strokes on light background work best; the app auto-inverts light-on-dark scans) or classify a MNIST test image by index.
+
 ## GitHub
 
 Create a repository named `CodeAlpha_HandwrittenRecognition`, then:

@@ -13,38 +13,11 @@ import torch.nn as nn
 from torch.utils.data import DataLoader
 from torchvision import datasets, transforms
 
+from mnist_model import MnistCNN
+
 
 ARTIFACTS = Path(__file__).resolve().parent / "artifacts"
 TORCH_DATA = Path(__file__).resolve().parent / ".torch_data"
-
-
-class MnistCNN(nn.Module):
-    def __init__(self, num_classes: int = 10):
-        super().__init__()
-        self.features = nn.Sequential(
-            nn.Conv2d(1, 32, 3, padding=1),
-            nn.ReLU(inplace=True),
-            nn.MaxPool2d(2),
-            nn.Conv2d(32, 64, 3, padding=1),
-            nn.ReLU(inplace=True),
-            nn.MaxPool2d(2),
-        )
-        self.classifier = nn.Sequential(
-            nn.Flatten(),
-            nn.Dropout(0.3),
-            nn.Linear(64 * 7 * 7, 128),
-            nn.ReLU(inplace=True),
-            nn.Linear(128, num_classes),
-        )
-
-    def forward(self, x):
-        x = self.features(x)
-        return self.classifier(x)
-
-
-def accuracy(logits: torch.Tensor, targets: torch.Tensor) -> float:
-    pred = logits.argmax(dim=1)
-    return (pred == targets).float().mean().item()
 
 
 def main():
